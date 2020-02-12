@@ -262,3 +262,88 @@ func TestNoValidArgsFuncInScript(t *testing.T) {
 
 	checkOmit(t, output, "has_completion_function=1")
 }
+
+func TestFlagCompletionInGo(t *testing.T) {
+	rootCmd := &Command{
+		Use: "root",
+		Run: emptyRun,
+	}
+	rootCmd.Flags().IntP("introot", "i", -1, "help message for flag introot")
+	rootCmd.RegisterFlagCompletionFunc("introot", func(cmd *Command, args []string, toComplete string) ([]string, BashCompDirective) {
+		completions := []string{}
+		for _, comp := range []string{"1", "2", "10"} {
+			if strings.HasPrefix(comp, toComplete) {
+				completions = append(completions, comp)
+			}
+		}
+		return completions, BashCompDirectiveDefault
+	})
+	rootCmd.Flags().String("filename", "", "Enter a filename")
+	rootCmd.RegisterFlagCompletionFunc("filename", func(cmd *Command, args []string, toComplete string) ([]string, BashCompDirective) {
+		completions := []string{}
+		for _, comp := range []string{"file.yaml", "myfile.json", "file.xml"} {
+			if strings.HasPrefix(comp, toComplete) {
+				completions = append(completions, comp)
+			}
+		}
+		return completions, BashCompDirectiveNoSpace | BashCompDirectiveNoFileComp
+	})
+
+	// Test completing an empty string
+	output, err := executeCommand(rootCmd, CompRequestCmd, "--introot", "")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	expected := `1
+2
+10
+:0
+`
+	if output != expected {
+		t.Errorf("expected: %q, got: %q", expected, output)
+	}
+
+	// Check completing with a prefix
+	output, err = executeCommand(rootCmd, CompRequestCmd, "--introot", "1")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	expected = `1
+10
+:0
+`
+	if output != expected {
+		t.Errorf("expected: %q, got: %q", expected, output)
+	}
+
+	// Test completing an empty string
+	output, err = executeCommand(rootCmd, CompRequestCmd, "--filename", "")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	expected = `file.yaml
+myfile.json
+file.xml
+:6
+`
+	if output != expected {
+		t.Errorf("expected: %q, got: %q", expected, output)
+	}
+
+	// Check completing with a prefix
+	output, err = executeCommand(rootCmd, CompRequestCmd, "--filename", "f")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	expected = `file.yaml
+file.xml
+:6
+`
+	if output != expected {
+		t.Errorf("expected: %q, got: %q", expected, output)
+	}
+}
