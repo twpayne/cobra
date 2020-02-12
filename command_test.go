@@ -31,7 +31,7 @@ func executeCommandWithContext(ctx context.Context, root *Command, args ...strin
 
 func executeCommandC(root *Command, args ...string) (c *Command, output string, err error) {
 	buf := new(bytes.Buffer)
-	root.SetOutput(buf)
+	root.SetOut(buf)
 	root.SetArgs(args)
 
 	c, err = root.ExecuteC()
