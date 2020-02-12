@@ -60,6 +60,9 @@ type Command struct {
 
 	// ValidArgs is list of all valid non-flag arguments that are accepted in bash completions
 	ValidArgs []string
+	// ValidArgsFunction is an optional function that provides valid non-flag arguments for bash completion.
+	// It is a dynamic version of using ValidArgs.
+	ValidArgsFunction func(cmd *Command, args []string, toComplete string) ([]string, BashCompDirective)
 
 	// Expected arguments
 	Args PositionalArgs
@@ -906,6 +909,9 @@ func (c *Command) ExecuteC() (cmd *Command, err error) {
 	// initialize help as the last point possible to allow for user
 	// overriding
 	c.InitDefaultHelpCmd()
+
+	// initialize the hidden command to be used for bash completion
+	c.initCompleteCmd()
 
 	args := c.args
 

@@ -58,6 +58,67 @@ __%[1]s_contains_word()
     return 1
 }
 
+__%[1]s_handle_go_custom_completion()
+{
+    __%[1]s_debug "${FUNCNAME[0]}: cur is ${cur}, words[*] is ${words[*]}, #words[@] is ${#words[@]}"
+
+    local out requestComp lastParam lastChar comp directive args
+
+    # Prepare the command to request completions for the program.
+    # Calling ${words[0]} instead of directly %[1]s allows to handle aliases
+    args=("${words[@]:1}")
+    requestComp="${words[0]} %[2]s ${args[*]}"
+
+    lastParam=${words[$((${#words[@]}-1))]}
+    lastChar=${lastParam:$((${#lastParam}-1)):1}
+    __%[1]s_debug "${FUNCNAME[0]}: lastParam ${lastParam}, lastChar ${lastChar}"
+
+    if [ -z "${cur}" ] && [ "${lastChar}" != "=" ]; then
+        # If the last parameter is complete (there is a space following it)
+        # We add an extra empty parameter so we can indicate this to the go method.
+        __%[1]s_debug "${FUNCNAME[0]}: Adding extra empty parameter"
+        requestComp="${requestComp} \"\""
+    fi
+
+    __%[1]s_debug "${FUNCNAME[0]}: calling ${requestComp}"
+    # Use eval to handle any environment variables and such
+    out=$(eval "${requestComp}" 2>/dev/null)
+
+    # Extract the directive integer at the very end of the output following a colon (:)
+    directive=${out##*:}
+    # Remove the directive
+    out=${out%%:*}
+    if [ "${directive}" = "${out}" ]; then
+        # There is not directive specified
+        directive=0
+    fi
+    __%[1]s_debug "${FUNCNAME[0]}: the completion directive is: ${directive}"
+    __%[1]s_debug "${FUNCNAME[0]}: the completions are: ${out[*]}"
+
+    if [ $((directive & %[3]d)) -ne 0 ]; then
+        # Error code.  No completion.
+        __%[1]s_debug "${FUNCNAME[0]}: received error from custom completion go code"
+        return
+    else
+        if [ $((directive & %[4]d)) -ne 0 ]; then
+            if [[ $(type -t compopt) = "builtin" ]]; then
+                __helm_debug "${FUNCNAME[0]}: activating no space"
+                compopt -o nospace
+            fi
+        fi
+        if [ $((directive & %[5]d)) -ne 0 ]; then
+            if [[ $(type -t compopt) = "builtin" ]]; then
+                __helm_debug "${FUNCNAME[0]}: activating no file completion"
+                compopt +o default
+            fi
+        fi
+
+        while IFS='' read -r comp; do
+            COMPREPLY+=("$comp")
+        done < <(compgen -W "${out[*]}" -- "$cur")
+    fi
+}
+
 __%[1]s_handle_reply()
 {
     __%[1]s_debug "${FUNCNAME[0]}"
@@ -136,13 +197,18 @@ __%[1]s_handle_reply()
     fi
 
     if [[ ${#COMPREPLY[@]} -eq 0 ]]; then
-		if declare -F __%[1]s_custom_func >/dev/null; then
-			# try command name qualified custom func
-			__%[1]s_custom_func
-		else
-			# otherwise fall back to unqualified for compatibility
-			declare -F __custom_func >/dev/null && __custom_func
-		fi
+        # if a go completion function is provided, defer to that function
+        if [ -n "${has_completion_function}" ]; then
+            __%[1]s_handle_go_custom_completion
+        else
+            if declare -F __%[1]s_custom_func >/dev/null; then
+                # try command name qualified custom func
+                __%[1]s_custom_func
+            else
+                # otherwise fall back to unqualified for compatibility
+                declare -F __custom_func >/dev/null && __custom_func
+            fi
+        fi
     fi
 
     # available in bash-completion >= 2, not always present on macOS
@@ -279,7 +345,7 @@ __%[1]s_handle_word()
     __%[1]s_handle_word
 }
 
-`, name))
+`, name, CompRequestCmd, BashCompDirectiveError, BashCompDirectiveNoSpace, BashCompDirectiveNoFileComp))
 }
 
 func writePostscript(buf *bytes.Buffer, name string) {
@@ -304,6 +370,7 @@ func writePostscript(buf *bytes.Buffer, name string) {
     local commands=("%[1]s")
     local must_have_one_flag=()
     local must_have_one_noun=()
+    local has_completion_function
     local last_command
     local nouns=()
 
@@ -404,7 +471,22 @@ func writeLocalNonPersistentFlag(buf *bytes.Buffer, flag *pflag.Flag) {
 	buf.WriteString(fmt.Sprintf(format, name))
 }
 
+// Setup annotations for go completions for registered flags
+func prepareCustomAnnotationsForFlags(cmd *Command) {
+	for flag := range flagCompletionFunctions {
+		// Make sure the completion script calls the __*_go_custom_completion function for
+		// every registered flag.  We need to do this here (and not when the flag was registered
+		// for completion) so that we can know the root command name for the prefix
+		// of __<prefix>_go_custom_completion
+		if flag.Annotations == nil {
+			flag.Annotations = map[string][]string{}
+		}
+		flag.Annotations[BashCompCustom] = []string{fmt.Sprintf("__%[1]s_handle_go_custom_completion", cmd.Root().Name())}
+	}
+}
+
 func writeFlags(buf *bytes.Buffer, cmd *Command) {
+	prepareCustomAnnotationsForFlags(cmd)
 	buf.WriteString(`    flags=()
     two_word_flags=()
     local_nonpersistent_flags=()
@@ -468,6 +550,9 @@ func writeRequiredNouns(buf *bytes.Buffer, cmd *Command) {
 	sort.Sort(sort.StringSlice(cmd.ValidArgs))
 	for _, value := range cmd.ValidArgs {
 		buf.WriteString(fmt.Sprintf("    must_have_one_noun+=(%q)\n", value))
+	}
+	if cmd.ValidArgsFunction != nil {
+		buf.WriteString("    has_completion_function=1\n")
 	}
 }
 
