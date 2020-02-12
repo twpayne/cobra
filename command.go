@@ -910,15 +910,15 @@ func (c *Command) ExecuteC() (cmd *Command, err error) {
 	// overriding
 	c.InitDefaultHelpCmd()
 
-	// initialize the hidden command to be used for bash completion
-	c.initCompleteCmd()
-
 	args := c.args
 
 	// Workaround FAIL with "go test -v" or "cobra.test -test.v", see #155
 	if c.args == nil && filepath.Base(os.Args[0]) != "cobra.test" {
 		args = os.Args[1:]
 	}
+
+	// initialize the hidden command to be used for bash completion
+	c.initCompleteCmd(args)
 
 	var flags []string
 	if c.TraverseChildren {
