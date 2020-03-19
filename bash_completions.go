@@ -102,13 +102,13 @@ __%[1]s_handle_go_custom_completion()
     else
         if [ $((directive & %[4]d)) -ne 0 ]; then
             if [[ $(type -t compopt) = "builtin" ]]; then
-                __helm_debug "${FUNCNAME[0]}: activating no space"
+                __%[1]s_debug "${FUNCNAME[0]}: activating no space"
                 compopt -o nospace
             fi
         fi
         if [ $((directive & %[5]d)) -ne 0 ]; then
             if [[ $(type -t compopt) = "builtin" ]]; then
-                __helm_debug "${FUNCNAME[0]}: activating no file completion"
+                __%[1]s_debug "${FUNCNAME[0]}: activating no file completion"
                 compopt +o default
             fi
         fi
