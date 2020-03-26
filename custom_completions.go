@@ -3,7 +3,6 @@ package cobra
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -40,15 +39,16 @@ const (
 )
 
 // RegisterFlagCompletionFunc should be called to register a function to provide completion for a flag.
-func (c *Command) RegisterFlagCompletionFunc(flagName string, f func(cmd *Command, args []string, toComplete string) ([]string, BashCompDirective)) {
+func (c *Command) RegisterFlagCompletionFunc(flagName string, f func(cmd *Command, args []string, toComplete string) ([]string, BashCompDirective)) error {
 	flag := c.Flag(flagName)
 	if flag == nil {
-		log.Fatal(fmt.Sprintf("RegisterFlagCompletionFunc: flag '%s' does not exist", flagName))
+		return fmt.Errorf("RegisterFlagCompletionFunc: flag '%s' does not exist", flagName)
 	}
 	if _, exists := flagCompletionFunctions[flag]; exists {
-		log.Fatal(fmt.Sprintf("RegisterFlagCompletionFunc: flag '%s' already registered", flagName))
+		return fmt.Errorf("RegisterFlagCompletionFunc: flag '%s' already registered", flagName)
 	}
 	flagCompletionFunctions[flag] = f
+	return nil
 }
 
 // Returns a string listing the different directive enabled in the specified parameter
