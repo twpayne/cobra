@@ -115,6 +115,8 @@ in this example again instead of the replication controllers.
 
 In some cases it is not possible to provide a list of possible completions in advance.  Instead, the list of completions must be determined at execution-time.  Cobra provides two ways of defining such dynamic completion of nouns. Note that both these methods can be used along-side each other as long as they are not both used for the same command.
 
+**Note**: *Custom Completions written in Go* will automatically work for other shell-completion scripts (e.g., Fish shell), while *Custom Completions written in Bash* will only work for Bash shell-completion.
+
 #### 1. Custom completions of nouns written in Go
 
 In a similar fashion as for static completions, you can use the `validArgsFunction` field to provide a Go function that Cobra will execute when it needs the list of completion choices for the nouns of a command.  Simplified code from `helm status` looks like:
